@@ -1,0 +1,102 @@
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script>
+  /**
+   * Run initializations on sidebar load.
+   */
+  $(function() {
+    // Assign handler functions to sidebar elements
+    $('#sidebar-process-doc-button').click(onProcessDocClick);
+    $('#sidebar-process-sel-button').click(onProcessSelClick);
+    $('#sidebar-hide-button').click(onHideClick);
+  });
+
+  function onProcessDocClick() {
+    this.disabled = true;
+
+    showStatus('Проверка...<br/><span class="secondary">(вы можете работать с документом, пока он проверяется)</span>');
+    
+    var sensitivity_threshold = $("#sensitivity_threshold").val();
+    var context_size = $("#context_size").val();
+    var exclude_proper_names = $("#exclude_proper_names").is(':checked');
+
+    google.script.run
+        .withSuccessHandler(
+          function(msg, element) {
+            // Respond to success conditions here.
+            showStatus(msg);
+            element.disabled = false;
+          })
+        .withFailureHandler(
+          function(msg, element) {
+            // Respond to failure conditions here.
+            showStatus(msg, 'Error!');
+            element.disabled = false;
+          })
+        .withUserObject(this)
+        .fresheye_document(sensitivity_threshold, context_size, exclude_proper_names);
+  }
+
+  function onProcessSelClick() {
+    this.disabled = true;
+
+    showStatus('Проверка...<br/><span class="secondary">(вы можете работать с документом, пока он проверяется)</span>');
+
+    var sensitivity_threshold = $("#sensitivity_threshold").val();
+    var context_size = $("#context_size").val();
+    var exclude_proper_names = $("#exclude_proper_names").is(':checked');
+
+    google.script.run
+        .withSuccessHandler(
+          function(msg, element) {
+            // Respond to success conditions here.
+            showStatus(msg);
+            element.disabled = false;
+          })
+        .withFailureHandler(
+          function(msg, element) {
+            // Respond to failure conditions here.
+            showStatus(msg, 'Error');
+            element.disabled = false;
+          })
+        .withUserObject(this)
+        .fresheye_selection(sensitivity_threshold, context_size, exclude_proper_names);
+  }
+
+  function onHideClick() {
+    this.disabled = true;
+
+    showStatus('Уборка...');
+
+    // Send the value to the server and listen for a response.
+    google.script.run
+        .withSuccessHandler(
+          function(msg, element) {
+            // Respond to success conditions here.
+            showStatus('Готово.');
+            element.disabled = false;
+          })
+        .withFailureHandler(
+          function(msg, element) {
+            // Respond to failure conditions here.
+            showStatus(msg, 'Error');
+            element.disabled = false;
+          })
+        .withUserObject(this)
+        .clear_document_or_selection();
+  }
+
+/**
+   * Displays the given status message in the sidebar.
+   *
+   * @param {String} msg The status message to display.
+   * @param {String} classId The message type (class id) that the message
+   *   should be displayed as.
+   */
+  function showStatus(msg, classId) {
+    $('#sidebar-status').removeClass().html(msg);
+    if (classId) {
+      $('#sidebar-status').addClass(classId);
+    }
+  }
+
+</script>

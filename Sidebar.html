@@ -1,0 +1,72 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <!-- Use a templated HTML printing scriptlet to import common stylesheet -->
+    <?!= HtmlService.createHtmlOutputFromFile('Stylesheet').getContent(); ?>
+  </head>
+  <body>
+    <!-- Below is the HTML code that defines the sidebar element structure. -->
+    <div class="sidebar branding-below">
+        <p><a href="http://kirsanov.com/fresheye" style="font-weight: bold;">Что это такое?</a></p>
+        <table>
+        <tr><td width="60%">Контекст:</td><td><input id="context_size" type="number" min="2" max="50" value="20" title="Сколько идущих подряд слов сравнивать"> слов</td></tr>
+        <tr><td>Порог срабатывания:</td><td><input id="sensitivity_threshold" type="number" min="0" max="2000" value="400" title="Уровень плохости, выше которого пары слов подсвечиваются"></td></tr>
+        </table>
+        <p><input id="exclude_proper_names" type="checkbox" checked title="Не проверять имена собственные"> <label for="exclude_proper_names" style="font-weight: normal">Пропускать имена собственные</label></p>
+      <!--
+      <div class="block" id="sidebar-button-bar">
+        <button class="action" id="sidebar-process-doc-button" title="Проверить и подсветить весь документ - может занять долгое время!">Проверить документ</button><br/>
+      </div>
+      -->
+      <div class="block" id="sidebar-button-bar">
+        <button class="action" id="sidebar-process-sel-button" title="Проверить и подсветить выделенный текст">Проверить</button>
+        <button id="sidebar-hide-button" title="Убрать подсветки в выделении или во всем документе">Убрать</button>
+      </div>
+      <div id="sidebar-status"></div>
+    </div>
+
+    <div class="sidebar bottom">
+      <a href="http://kirsanov.com/fresheye/"><img alt="Fresh Eye logo" class="logo" width="39" height="49"
+          src="data:image/png;base64,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
+"></a>
+      <span class="gray branding-text">Docs add-on by <a href="mailto:dmitry@kirsanov.com">Dmitry Kirsanov</a><br/>
+      License: GNU GPL, <a href="http://kirsanov.com/fresheye/fe-gdoc.zip">get source</a></span>
+      
+    </div>
+
+    <!-- Use a templated HTML printing scriptlet to import JavaScript -->
+    <?!= HtmlService.createHtmlOutputFromFile('SidebarJavaScript').getContent(); ?>
+  </body>
+</html>
