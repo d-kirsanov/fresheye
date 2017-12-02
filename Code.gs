@@ -198,8 +198,19 @@ var exceptions_voc = {       /* exceptions vocabulary */
     "этот что": true,
   };
 
+// separate dict with first words only, for quick check
+var exceptions_voc_first = {};
+for (var key in exceptions_voc) {
+   if (exceptions_voc.hasOwnProperty(key)) { 
+      exceptions_voc_first[key.split(" ")[0]] = true;
+   }
+}  
+
 function checkvoc (w1, w2) {  
-  return exceptions_voc[w1+" "+w2];
+  if (exceptions_voc_first[w1]) {
+      return exceptions_voc[w1+" "+w2];
+  }
+  return false;
 }
 
 function weigh_sep(prec_sep) {
@@ -283,7 +294,7 @@ function weigh_sep(prec_sep) {
   function implen (x)
   {
     if (x == 2)
-      return 5;
+      return 5.0; // not 5 to avoid polymorphism in return value
     return (x - ((x - 1) * (x - 1) / 36) + (4.1 / x));
   }
   
@@ -329,7 +340,7 @@ function weigh_sep(prec_sep) {
       }
     }
     
-    return [count_same? (res_same / count_same) : 0, count_diff ? res_diff : 0];
+    return [count_same? (res_same / count_same) : 0.0, count_diff ? res_diff : 0];
   }
 
 
