@@ -43,8 +43,8 @@ function onInstall(e) {
 function showSidebar() {
   var sb = HtmlService.createTemplateFromFile('Sidebar')
   .evaluate()
-  .setTitle(SIDEBAR_TITLE)
-  .setSandboxMode(HtmlService.SandboxMode.IFRAME);
+  .setTitle(SIDEBAR_TITLE); // Remove .setSandboxMode completely!
+  
   DocumentApp.getUi().showSidebar(sb);
 }
 
@@ -818,19 +818,27 @@ function fresheye(source, sensitivity_threshold, context_size, exclude_proper_na
 //////////////////////////////////////////////////////////////////////////////// external API
 
 function fresheye_document(sensitivity_threshold, context_size, exclude_proper_names) {
-
   var doc = DocumentApp.getActiveDocument();
   var source = doc.getBody();
     
-  return fresheye(source, sensitivity_threshold, context_size, exclude_proper_names);
+  // Run your engine to highlight the document
+  fresheye(source, sensitivity_threshold, context_size, exclude_proper_names);
+  
+  // Return a safe string that won't break JSON serialization
+  return "Проверка документа завершена."; 
 }
 
 function fresheye_selection(sensitivity_threshold, context_size, exclude_proper_names) {
-  
   var doc = DocumentApp.getActiveDocument();
   var source = doc.getSelection();
   
-  return fresheye(source, sensitivity_threshold, context_size, exclude_proper_names);
+  if (!source) {
+    return "Выделите текст для проверки.";
+  }
+  
+  fresheye(source, sensitivity_threshold, context_size, exclude_proper_names);
+  
+  return "Проверка выделенного фрагмента завершена.";
 }
 
 function clear_document_or_selection() {
@@ -850,3 +858,5 @@ function clear_document_or_selection() {
   
   return true; 
 }
+
+

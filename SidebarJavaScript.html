@@ -1,4 +1,4 @@
-<script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <script>
   /**
    * Run initializations on sidebar load.
@@ -13,8 +13,8 @@
   function onProcessDocClick() {
     this.disabled = true;
 
-    showStatus('Проверка...<br/><span class="secondary">(вы можете работать с документом, пока он проверяется)</span>');
-    
+    showStatus('Проверка... (вы можете работать с документом, пока он проверяется)');
+
     var sensitivity_threshold = $("#sensitivity_threshold").val();
     var context_size = $("#context_size").val();
     var exclude_proper_names = $("#exclude_proper_names").is(':checked');
@@ -39,7 +39,7 @@
   function onProcessSelClick() {
     this.disabled = true;
 
-    showStatus('Проверка...<br/><span class="secondary">(вы можете работать с документом, пока он проверяется)</span>');
+    showStatus('Проверка... (вы можете работать с документом, пока он проверяется)');
 
     var sensitivity_threshold = $("#sensitivity_threshold").val();
     var context_size = $("#context_size").val();
@@ -93,7 +93,7 @@
    *   should be displayed as.
    */
   function showStatus(msg, classId) {
-    $('#sidebar-status').removeClass().html(msg);
+    $('#sidebar-status').removeClass().text(msg); // <-- Changed .html to .text
     if (classId) {
       $('#sidebar-status').addClass(classId);
     }
