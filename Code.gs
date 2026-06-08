@@ -709,10 +709,9 @@ function make_context (wc, worder) {
           }
           var average_badness = (words_checked? this.total_badness/words_checked : 0);
           average_badness = Math.round(average_badness * 100) / 100;
-          return "Готово.<br/>"+
-                 "Слов: "+words_checked+(broken?" (сколько успел, извините)":"")+"<br/>"+
-                 "Плохих пар: "+this._bads.length+"<br/>"+
-                 "Средняя плохость на слово: "+average_badness;
+          return "Слов: "+words_checked+(broken?" (сколько успел, извините)":"")+", "+
+                 "плохих пар: "+this._bads.length+", "+
+                 "средняя плохость на слово: "+average_badness;
         },
           
         paint: function() { //// paints all bads in the document with colors corresponding to badness; interfaces to google doc to do so
@@ -838,9 +837,9 @@ function fresheye_selection(sensitivity_threshold, context_size, exclude_proper_
     return "Выделите текст для проверки.";
   }
   
-  fresheye(source, sensitivity_threshold, context_size, exclude_proper_names);
+  var diag = fresheye(source, sensitivity_threshold, context_size, exclude_proper_names);
   
-  return "Проверка выделенного фрагмента завершена.";
+  return "Проверка выделенного фрагмента завершена. "+diag;
 }
 
 function clear_document_or_selection() {
