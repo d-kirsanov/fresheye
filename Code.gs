@@ -1,4 +1,4 @@
-﻿/**
+/**
 * @OnlyCurrentDoc  Limits the script to only accessing the current document.
 */
 
@@ -440,75 +440,77 @@ function simwords (a, b) //// core of the program: a score of how similar two wo
 /////////////////////////////////////////////////////////////////////////////////// worder
 
 function make_worder(source) { //// an object that feeds us words and separators; one of the two places that touches the Google Doc API (read only), the other being context::paint  
-  var elements;
+  var textElements = [];
+  
+  function collectTextElements(element) {
+    if (element.getType() === DocumentApp.ElementType.TEXT) {
+      textElements.push(element.asText());
+    } else if (element.getNumChildren) {
+      for (var i = 0; i < element.getNumChildren(); i++) {
+        collectTextElements(element.getChild(i));
+      }
+    }
+  }
+
   if ('getRangeElements' in source) { // source can be either selection or Body; this is a selection
-    elements = source.getRangeElements(); // all elements that selection touches; even if a paragraph is partially selected, we check it all
-    for (var i = 0; i < elements.length; i++) {
-      elements[i] = elements[i].getElement().asText(); // make an array of Text elements that have findText
+    var rangeElements = source.getRangeElements(); // all elements that selection touches; even if a paragraph is partially selected, we check it all
+    for (var i = 0; i < rangeElements.length; i++) {
+      collectTextElements(rangeElements[i].getElement());
     }
   }
   else 
   { // single Body element (all document); it already has findText
-    elements = [source];
+    collectTextElements(source);
   }
+  
+  var patternStr = "[А-ЯЁа-яё][а-яё]+";
+  var regex = new RegExp(patternStr, "g");
+  var cache = [];
+  
+  for (var i = 0; i < textElements.length; i++) {
+    var word_element = textElements[i];
+    var text = word_element.getText();
+    var last_i = 0;
+    var new_element = true;
+    var match;
     
-  return {    
-    pattern: "[А-ЯЁа-яё][а-яё]+", // cannot search for single letters because of https://code.google.com/p/google-apps-script-issues/issues/detail?id=2770, so at least two russian letters
-    elements: elements,
-    last_found_word: null,
-    last_i: 0,
-    new_element: true,
-    
-    _cache: new Array(5000),
-    _cache_length: 0,
-    _index: 0,
-    
-    reset: function() { this._index = 0; }, // so it can be reused, will return words from cache
-
-    get_word: function() { //// returns the next word, its indices in the source so it can be highlighted, and the sep before it
-      
-      if (this._cache_length > this._index) {
-        return this._cache[this._index++];
-      }
-      
-      this.last_found_word = this.elements[0].findText(this.pattern, this.last_found_word);
-      while (this.last_found_word == null) { // reached end of an element, go to next one
-        this.elements.shift(); // pop the first in the list
-        this.new_element = true;
-        if (this.elements.length == 0) { // end of elements
-          return null;
-        }
-        this.last_found_word = this.elements[0].findText(this.pattern, this.last_found_word);
-      }
-      
-      var last_found_word = this.last_found_word;
-      var new_element = this.new_element;
-      var last_i = this.last_i
-      var word_element = last_found_word.getElement().asText();
-      var text = word_element.getText();
-      var start = last_found_word.getStartOffset();
-      var end = last_found_word.getEndOffsetInclusive();
-      var r = {
+    while ((match = regex.exec(text)) !== null) {
+      var start = match.index;
+      var end = start + match[0].length - 1;
+      cache.push({
         word_element: word_element,
         word_element_text: text,
-        word_str: text.slice(start, end + 1),
+        word_str: match[0],
         start: start,
         end: end,
         prec_sep: {
           new_element: new_element,
           sep_str: text.slice(last_i, start)
         }
-      };
-      this.new_element = false;
-      this.last_i = end + 1;
+      });
+      new_element = false;
+      last_i = end + 1;
+    }
+  }
+    
+  return {    
+    pattern: patternStr, // cannot search for single letters because of https://code.google.com/p/google-apps-script-issues/issues/detail?id=2770, so at least two russian letters
+    elements: textElements,
+    last_found_word: null,
+    last_i: 0,
+    new_element: true,
+    
+    _cache: cache,
+    _cache_length: cache.length,
+    _index: 0,
+    
+    reset: function() { this._index = 0; }, // so it can be reused, will return words from cache
 
-      if (!(this._cache_length <= this._index)) {
-        this._cache[this._index] = r;
-        this._cache_length ++;
+    get_word: function() { //// returns the next word, its indices in the source so it can be highlighted, and the sep before it
+      if (this._index < this._cache_length) {
+        return this._cache[this._index++];
       }
-      this._index ++;
-
-      return r;
+      return null;
     }
   }
 }
@@ -671,83 +673,83 @@ function make_context (wc, worder) {
              dist += this._queue[j].word.length * 0.333 + 1; // words themselves are also separators, count in their length
         }
         if (options.wordcount_use_coefficient) { // increase dist for frequent words
-			dist *= 2000; // because we divide by sum of coefficients, each 1000 for 1-occurrence words
-			dist /= wc.get(this._queue[i].word) + wc.get(this._queue[this._queue.length - 1].word);
-        }
-        
-        var dal = exp ((- dist * dist) * this.twosigmasqr_reciprocal);
-        var badness = sim * dal;
-	
-        if ( badness > options.sensitivity_threshold ) {
-          // add to list of paintables
-          this._bads.push({
-            badness: badness,
-            sim: sim,
-            dist: dist,
-            other: other,
-            current: current
-          });
-          this.total_badness += badness;
-        }
-      }
-	},
-      
-    run: function() { //// keeps shifting and checking until there are words in worder, returns stats
-      var words_checked = 0;      
-      var broken = false;
-      while (this.shift()) {
-        this.check();
-        words_checked ++;
-        // do we have time yet? google limits scripts to 5 minutes
-        var now = new Date();
-        if (now.getTime() - start_time.getTime() > 240000) { // 60000 * 4 minutes
-          broken = true;
-          break;         
-        }
-      }
-      var average_badness = (words_checked? this.total_badness/words_checked : 0);
-      average_badness = Math.round(average_badness * 100) / 100;
-      return "Готово.<br/>"+
-             "Слов: "+words_checked+(broken?" (сколько успел, извините)":"")+"<br/>"+
-             "Плохих пар: "+this._bads.length+"<br/>"+
-             "Средняя плохость на слово: "+average_badness;
-    },
-      
-    paint: function() { //// paints all bads in the document with colors corresponding to badness; interfaces to google doc to do so
-      var already_painted = {};
-      for (var i = 0; i < this._bads.length; i++) {
-        var bad = this._bads[i];
-        var badness = bad.badness;
-        if (badness > 2000) badness = 2000; 
-        
-        var keyother = ""+bad.other.start+";;"+bad.other.end+";;"+bad.other.word_element_text;
-        var keycurrent = ""+bad.current.start+";;"+bad.current.end+";;"+bad.current.word_element_text;
-        
-        var level = (badness - options.sensitivity_threshold)/(2000 - options.sensitivity_threshold);
-        
-        if (keyother in already_painted) {
-          highlight_color_counter = already_painted[keyother][1];
-        }
-        if (keycurrent in already_painted) {
-          highlight_color_counter = already_painted[keycurrent][1];
-        }
-        
-        var color = get_color_for_tint(level, highlight_color_counter);
+    			dist *= 2000; // because we divide by sum of coefficients, each 1000 for 1-occurrence words
+    			dist /= wc.get(this._queue[i].word) + wc.get(this._queue[this._queue.length - 1].word);
+            }
+            
+            var dal = exp ((- dist * dist) * this.twosigmasqr_reciprocal);
+            var badness = sim * dal;
+    	
+            if ( badness > options.sensitivity_threshold ) {
+              // add to list of paintables
+              this._bads.push({
+                badness: badness,
+                sim: sim,
+                dist: dist,
+                other: other,
+                current: current
+              });
+              this.total_badness += badness;
+            }
+          }
+    	},
+          
+        run: function() { //// keeps shifting and checking until there are words in worder, returns stats
+          var words_checked = 0;      
+          var broken = false;
+          while (this.shift()) {
+            this.check();
+            words_checked ++;
+            // do we have time yet? google limits scripts to 5 minutes
+            var now = new Date();
+            if (now.getTime() - start_time.getTime() > 240000) { // 60000 * 4 minutes
+              broken = true;
+              break;         
+            }
+          }
+          var average_badness = (words_checked? this.total_badness/words_checked : 0);
+          average_badness = Math.round(average_badness * 100) / 100;
+          return "Готово.<br/>"+
+                 "Слов: "+words_checked+(broken?" (сколько успел, извините)":"")+"<br/>"+
+                 "Плохих пар: "+this._bads.length+"<br/>"+
+                 "Средняя плохость на слово: "+average_badness;
+        },
+          
+        paint: function() { //// paints all bads in the document with colors corresponding to badness; interfaces to google doc to do so
+          var already_painted = {};
+          for (var i = 0; i < this._bads.length; i++) {
+            var bad = this._bads[i];
+            var badness = bad.badness;
+            if (badness > 2000) badness = 2000; 
+            
+            var keyother = ""+bad.other.start+";;"+bad.other.end+";;"+bad.other.word_element_text;
+            var keycurrent = ""+bad.current.start+";;"+bad.current.end+";;"+bad.current.word_element_text;
+            
+            var level = (badness - options.sensitivity_threshold)/(2000 - options.sensitivity_threshold);
+            
+            if (keyother in already_painted) {
+              highlight_color_counter = already_painted[keyother][1];
+            }
+            if (keycurrent in already_painted) {
+              highlight_color_counter = already_painted[keycurrent][1];
+            }
+            
+            var color = get_color_for_tint(level, highlight_color_counter);
 
-        // paint this one only if it was not yet painted by another pair, or if it was that badness was less than the current
-        if (!(keyother in already_painted) || already_painted[keyother][0] < badness) {
-          bad.other.word_element.setBackgroundColor(bad.other.start, bad.other.end, color);
-          already_painted[keyother] = [badness, highlight_color_counter];
+            // paint this one only if it was not yet painted by another pair, or if it was that badness was less than the current
+            if (!(keyother in already_painted) || already_painted[keyother][0] < badness) {
+              bad.other.word_element.setBackgroundColor(bad.other.start, bad.other.end, color);
+              already_painted[keyother] = [badness, highlight_color_counter];
+            }
+            if (!(keycurrent in already_painted) || already_painted[keycurrent][0] < badness) {
+              bad.current.word_element.setBackgroundColor(bad.current.start, bad.current.end, color);        
+              already_painted[keycurrent] = [badness, highlight_color_counter];
+            }
+            
+            highlight_color_counter++;
+          }
         }
-        if (!(keycurrent in already_painted) || already_painted[keycurrent][0] < badness) {
-          bad.current.word_element.setBackgroundColor(bad.current.start, bad.current.end, color);        
-          already_painted[keycurrent] = [badness, highlight_color_counter];
-        }
-        
-        highlight_color_counter++;
-      }
-    }
-  }  
+      }  
 }
 
 /////////////////////////////////////////////////////////////////////////////////// color
@@ -858,5 +860,3 @@ function clear_document_or_selection() {
   
   return true; 
 }
-
-
